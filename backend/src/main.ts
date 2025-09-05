@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express'; // ⬅️ add this
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
@@ -12,22 +13,13 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule); // ⬅️ typed as Express
   const configService = app.get(ConfigService);
 
-  // Trust proxy for Codespaces
   app.set('trust proxy', 1);
 
-  // Security
-  app.use(helmet({
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: false, // Disabled for development
-  }));
-
-  // Compression
+  app.use(helmet({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: false }));
   app.use(compression());
-
-  // Rate limiting (with Codespaces support)
   app.use(
     rateLimit({
       windowMs: 15 * 60 * 1000,
@@ -35,80 +27,58 @@ async function bootstrap() {
       message: 'Too many requests from this IP, please try again later.',
       standardHeaders: true,
       legacyHeaders: false,
-      skip: (req) => req.ip === '127.0.0.1', // Skip for localhost
+      skip: (req) => req.ip === '127.0.0.1',
     }),
   );
 
-  // CORS - Allow all origins for development
   app.enableCors({
-    origin: true, // Allow all origins in development
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
 
-  // Global pipes
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
-
-  // Global filters
   app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalInterceptors(new LoggingInterceptor(), new TransformInterceptor());
 
-  // Global interceptors
-  app.useGlobalInterceptors(
-    new LoggingInterceptor(),
-    new TransformInterceptor(),
-  );
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
+  app.setGlobalPrefix('api'); // → your routes live at /api/v1/*
 
-  // API versioning
-  app.enableVersioning({
-    type: VersioningType.URI,
-    defaultVersion: '1',
-  });
-
-  // Global prefix
-  app.setGlobalPrefix('api');
-
-  // Swagger documentation
   if (configService.get('NODE_ENV') !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('DayCare API')
       .setDescription('API para comunicación guarderías/preescolares')
       .setVersion('1.0')
       .addBearerAuth()
-      .addTag('auth', 'Autenticación')
-      .addTag('users', 'Gestión de usuarios')
-      .addTag('children', 'Gestión de niños')
-      .addTag('attendance', 'Control de asistencia')
-      .addTag('timeline', 'Timeline diario')
-      .addTag('messages', 'Mensajería')
-      .addTag('consents', 'Consentimientos digitales')
-      .addTag('files', 'Gestión de archivos')
+      .addTag('auth')
+      .addTag('users')
+      .addTag('children')
+      .addTag('attendance')
+      .addTag('timeline')
+      .addTag('messages')
+      .addTag('consents')
+      .addTag('files')
       .build();
-
     const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('api/docs', app, document, {
-      swaggerOptions: {
-        persistAuthorization: true,
-      },
-    });
+    SwaggerModule.setup('api/docs', app, document, { swaggerOptions: { persistAuthorization: true } });
   }
 
-  const port = configService.get('PORT') || 3001;
-  await app.listen(port);
+  const port = Number(configService.get('PORT')) || 3001;
 
-  console.log(`🚀 DayCare API Server running on: http://localhost:${port}`);
-  console.log(`📖 API Documentation: http://localhost:${port}/api/docs`);
-  console.log(`🏥 DayCare MVP Backend v1.0.0`);
-  console.log(`📍 API Base URL: http://localhost:${port}/api/v1`);
+  // In Codespaces or containers, binding to 0.0.0.0 avoids “only accessible from inside”
+  await app.listen(port, '0.0.0.0');
+
+  console.log(`🚀 DayCare API Server: http://localhost:${port}`);
+  console.log(`📖 Swagger: http://localhost:${port}/api/docs`);
+  console.log(`📍 Base URL: http://localhost:${port}/api/v1`);
 }
 
 bootstrap();
