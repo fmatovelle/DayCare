@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Head from 'next/head';
 
+// NEW VERSION
 export default function Login() {
     const [email, setEmail] = useState('admin@daycare.com');
     const [password, setPassword] = useState('admin123');
