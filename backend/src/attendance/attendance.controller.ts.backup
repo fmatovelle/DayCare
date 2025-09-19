@@ -1,0 +1,78 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { AttendanceService } from './attendance.service';
+import { CheckInDto } from './dto/check-in.dto';
+import { CheckOutDto } from './dto/check-out.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+
+@ApiTags('attendance')
+@Controller('attendance')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
+export class AttendanceController {
+  constructor(private readonly attendanceService: AttendanceService) {}
+
+  @Post('check-in')
+  @ApiOperation({ summary: 'Registrar entrada de niño' })
+  checkIn(@Body() checkInDto: CheckInDto) {
+    return this.attendanceService.checkIn(checkInDto);
+  }
+
+  @Patch('check-out')
+  @ApiOperation({ summary: 'Registrar salida de niño' })
+  checkOut(@Body() checkOutDto: CheckOutDto) {
+    return this.attendanceService.checkOut(checkOutDto);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'Obtener registros de asistencia' })
+  @ApiQuery({ name: 'date', required: false, description: 'Filtrar por fecha (YYYY-MM-DD)' })
+  @ApiQuery({ name: 'childId', required: false, description: 'Filtrar por niño' })
+  @ApiQuery({ name: 'centerId', required: false, description: 'Filtrar por centro' })
+  @ApiQuery({ name: 'startDate', required: false, description: 'Fecha inicio rango' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'Fecha fin rango' })
+  findAll(
+    @Query('date') date?: string,
+    @Query('childId') childId?: string,
+    @Query('centerId') centerId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    if (startDate && endDate) {
+      return this.attendanceService.findByDateRange(startDate, endDate);
+    }
+    if (date) {
+      return this.attendanceService.findByDate(date);
+    }
+    if (childId) {
+      return this.attendanceService.findByChild(childId);
+    }
+    if (centerId) {
+      return this.attendanceService.findByCenter(centerId);
+    }
+    return this.attendanceService.findAll();
+  }
+
+  @Get('currently-present')
+  @ApiOperation({ summary: 'Obtener niños actualmente presentes' })
+  @ApiQuery({ name: 'centerId', required: false, description: 'Filtrar por centro' })
+  getCurrentlyPresent(@Query('centerId') centerId?: string) {
+    return this.attendanceService.getCurrentlyCheckedIn(centerId);
+  }
+
+  @Get('stats/:centerId')
+  @ApiOperation({ summary: 'Obtener estadísticas de asistencia' })
+  @ApiQuery({ name: 'date', required: false, description: 'Fecha específica (default: hoy)' })
+  getStats(@Param('centerId') centerId: string, @Query('date') date?: string) {
+    return this.attendanceService.getAttendanceStats(centerId, date);
+  }
+}

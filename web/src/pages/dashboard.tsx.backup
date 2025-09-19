@@ -1,0 +1,182 @@
+﻿import { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+import Head from 'next/head';
+
+export default function Dashboard() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  const getApiUrl = () => {
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      if (hostname.includes('github.dev')) {
+        return `https://${hostname.replace('-3000.', '-3001.')}/api/v1`;
+      }
+    }
+    return 'http://localhost:3001/api/v1';
+  };
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      router.push('/login');
+      return;
+    }
+
+    fetch(`${getApiUrl()}/auth/profile`, {
+      headers: {
+        'Authorization': 'Bearer ' + token,
+      },
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.data) {
+        setUser(data.data);
+      } else {
+        router.push('/login');
+      }
+    })
+    .catch(() => {
+      router.push('/login');
+    })
+    .finally(() => {
+      setLoading(false);
+    });
+  }, [router]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    router.push('/login');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div>Cargando...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Head>
+        <title>Dashboard - DayCare</title>
+      </Head>
+      
+      <div className="min-h-screen bg-gray-50">
+        <div className="bg-white shadow">
+          <div className="max-w-7xl mx-auto px-4 py-6">
+            <div className="flex justify-between items-center">
+              <h1 className="text-3xl font-bold">DayCare Dashboard</h1>
+              <button
+                onClick={handleLogout}
+                className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+              >
+                Cerrar Sesion
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto py-6 px-4">
+          <div className="bg-white p-6 rounded shadow mb-6">
+            <h3 className="text-lg font-medium mb-4">
+              Bienvenido, {user?.firstName} {user?.lastName}
+            </h3>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <span className="text-sm font-medium text-gray-500">Email: </span>
+                <span className="text-sm text-gray-900">{user?.email}</span>
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-500">Rol: </span>
+                <span className="text-sm text-gray-900">{user?.role}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="bg-white p-6 rounded shadow">
+              <h3 className="text-lg font-medium mb-2">Centros</h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Gestiona centros de cuidado infantil
+              </p>
+              <button
+                onClick={() => router.push('/centers')}
+                className="w-full bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              >
+                Gestionar Centros
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded shadow">
+              <h3 className="text-lg font-medium mb-2">Aulas</h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Organiza aulas por grupos de edad
+              </p>
+              <button
+                onClick={() => router.push('/classrooms')}
+                className="w-full bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+              >
+                Gestionar Aulas
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded shadow">
+              <h3 className="text-lg font-medium mb-2">Ninos</h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Perfiles y matriculacion de ninos
+              </p>
+              <button
+                onClick={() => router.push('/children')}
+                className="w-full bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+              >
+                Gestionar Ninos
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded shadow">
+              <h3 className="text-lg font-medium mb-2">Asistencia</h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Control de entrada y salida diario
+              </p>
+              <button
+                onClick={() => alert('Proximamente: Sistema de asistencia')}
+                className="w-full bg-yellow-600 text-white px-4 py-2 rounded hover:bg-yellow-700"
+              >
+                Control Asistencia
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded shadow">
+              <h3 className="text-lg font-medium mb-2">Timeline</h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Actividades diarias y fotos
+              </p>
+              <button
+                onClick={() => alert('Proximamente: Timeline de actividades')}
+                className="w-full bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700"
+              >
+                Ver Timeline
+              </button>
+            </div>
+
+            <div className="bg-white p-6 rounded shadow">
+              <h3 className="text-lg font-medium mb-2">Mensajes</h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Comunicacion con familias
+              </p>
+              <button
+                onClick={() => alert('Proximamente: Sistema de mensajeria')}
+                className="w-full bg-pink-600 text-white px-4 py-2 rounded hover:bg-pink-700"
+              >
+                Ver Mensajes
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

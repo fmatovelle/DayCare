@@ -1,0 +1,158 @@
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Between } from 'typeorm';
+import { Attendance } from './entities/attendance.entity';
+import { CheckInDto } from './dto/check-in.dto';
+import { CheckOutDto } from './dto/check-out.dto';
+
+@Injectable()
+export class AttendanceService {
+  constructor(
+    @InjectRepository(Attendance)
+    private readonly attendanceRepository: Repository<Attendance>,
+  ) {}
+
+  async checkIn(checkInDto: CheckInDto): Promise<Attendance> {
+    const date = new Date(checkInDto.date);
+    
+    // Check if child is already checked in today
+    const existingCheckIn = await this.attendanceRepository.findOne({
+      where: {
+        childId: checkInDto.childId,
+        date,
+        status: 'checked_in',
+        isActive: true,
+      },
+    });
+
+    if (existingCheckIn) {
+      throw new BadRequestException('El niño ya esta registrado como presente hoy');
+    }
+
+    const attendance = this.attendanceRepository.create({
+      ...checkInDto,
+      date,
+      checkInTime: new Date(),
+      status: 'checked_in',
+    });
+
+    return this.attendanceRepository.save(attendance);
+  }
+
+  async checkOut(checkOutDto: CheckOutDto): Promise<Attendance> {
+    const attendance = await this.attendanceRepository.findOne({
+      where: { id: checkOutDto.attendanceId, isActive: true },
+    });
+
+    if (!attendance) {
+      throw new NotFoundException('Registro de asistencia no encontrado');
+    }
+
+    if (attendance.status === 'checked_out') {
+      throw new BadRequestException('El niño ya fue registrado como retirado');
+    }
+
+    attendance.checkOutTime = new Date();
+    attendance.checkOutNotes = checkOutDto.checkOutNotes;
+    attendance.checkOutByUserId = checkOutDto.checkOutByUserId;
+    attendance.status = 'checked_out';
+
+    return this.attendanceRepository.save(attendance);
+  }
+
+  async findAll(): Promise<Attendance[]> {
+    return this.attendanceRepository.find({
+      where: { isActive: true },
+      order: { date: 'DESC', checkInTime: 'DESC' },
+    });
+  }
+
+  async findByDate(date: string): Promise<Attendance[]> {
+    const searchDate = new Date(date);
+    return this.attendanceRepository.find({
+      where: { 
+        date: searchDate,
+        isActive: true 
+      },
+      order: { checkInTime: 'ASC' },
+    });
+  }
+
+  async findByChild(childId: string): Promise<Attendance[]> {
+    return this.attendanceRepository.find({
+      where: { childId, isActive: true },
+      order: { date: 'DESC' },
+    });
+  }
+
+  async findByCenter(centerId: string): Promise<Attendance[]> {
+    return this.attendanceRepository.find({
+      where: { centerId, isActive: true },
+      order: { date: 'DESC', checkInTime: 'DESC' },
+    });
+  }
+
+  async findByDateRange(startDate: string, endDate: string): Promise<Attendance[]> {
+    return this.attendanceRepository.find({
+      where: {
+        date: Between(new Date(startDate), new Date(endDate)),
+        isActive: true,
+      },
+      order: { date: 'DESC', checkInTime: 'DESC' },
+    });
+  }
+
+  async getCurrentlyCheckedIn(centerId?: string): Promise<Attendance[]> {
+    const whereCondition: any = {
+      status: 'checked_in',
+      isActive: true,
+    };
+
+    if (centerId) {
+      whereCondition.centerId = centerId;
+    }
+
+    return this.attendanceRepository.find({
+      where: whereCondition,
+      order: { checkInTime: 'ASC' },
+    });
+  }
+
+  async getAttendanceStats(centerId: string, date?: string) {
+    const searchDate = date ? new Date(date) : new Date();
+    
+    const totalPresent = await this.attendanceRepository.count({
+      where: {
+        centerId,
+        date: searchDate,
+        status: 'checked_in',
+        isActive: true,
+      },
+    });
+
+    const totalCheckedOut = await this.attendanceRepository.count({
+      where: {
+        centerId,
+        date: searchDate,
+        status: 'checked_out',
+        isActive: true,
+      },
+    });
+
+    const currentlyPresent = await this.attendanceRepository.count({
+      where: {
+        centerId,
+        date: searchDate,
+        status: 'checked_in',
+        isActive: true,
+      },
+    });
+
+    return {
+      date: searchDate,
+      totalCheckedIn: totalPresent + totalCheckedOut,
+      currentlyPresent,
+      totalCheckedOut,
+    };
+  }
+}

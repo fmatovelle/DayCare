@@ -26,8 +26,8 @@
 ## 🔶 Phase 1: Core Structure (Next 2-3 weeks)
 
 ### Centers Management
-- [ ] Centers entity & database schema
-- [ ] Centers CRUD API endpoints
+- [x] Centers entity & database schema
+- [x] Centers CRUD API endpoints
 - [ ] Centers management in web admin
 - [ ] User-center associations
 
